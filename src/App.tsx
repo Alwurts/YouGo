@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { start } from 'repl';
 import styled from "styled-components";
 import './App.css';
 
@@ -21,7 +22,14 @@ const Container = styled.div<ContainerProps>`
 const TimerMessage = styled.p`
 
   color: gray;
-  font-size: 200px;
+  font-size: 300px;
+`;
+
+const StartMessage = styled.p`
+
+  color: gray;
+  font-size: 40px;
+  padding: 0 16px;
 `;
 
 interface touchPosition {
@@ -35,14 +43,13 @@ function App() {
 
   const [touches, setTouches] = useState<any>({})
 
-  const [winner, setWinner] = useState<touchPosition>()
-  let timerWinner = useRef<any>()
-
-  const [countToRandom, setCountToRandom] = useState<number>(0)
-  const countToRandomRef = useRef(countToRandom)
-  countToRandomRef.current = countToRandom;
+  const [whoIsSelected, setWhoIsSelected] = useState<any>()
   
-
+  let oneSecondIntervalTimer = useRef<any>()
+  const [countToSelectWho, setCountToSelectWho] = useState<number>(0)
+  const countToSelectWhoRef = useRef(countToSelectWho)
+  countToSelectWhoRef.current = countToSelectWho;
+  
   const COLORS : any = {
     0:"hsl(359, 100%, 50%)",
     1:"hsl(96, 100%, 50%)",
@@ -66,17 +73,13 @@ function App() {
     19:"hsl(39, 100%, 50%)",
     20:"hsl(300, 100%, 50%)",
   }
-
-  const onWinnerTimer = (tempTouches: any) => {
-
-    if (countToRandomRef.current >= 3) {
-      setWinner(tempTouches[0])
-      return
-    }
-    setCountToRandom(prevCount => prevCount + 1)
-  }
   
   const touchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+
+    if (whoIsSelected && event.touches.length === 1) {
+      resetCountDown();
+      setWhoIsSelected(null);
+    }
 
     let tempTouches = {...touches}
 
@@ -93,9 +96,13 @@ function App() {
 
     setTouches(tempTouches)
 
-    timerWinner.current = setInterval(()=>{
-      onWinnerTimer(tempTouches);
-    }, 1000);
+    if (event.touches.length === 2) {
+      startCountDown(tempTouches);
+    } else if (event.touches.length > 2) {
+      resetCountDown();
+      startCountDown(tempTouches);
+    }
+    
   }
 
   const touchMove = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -119,38 +126,77 @@ function App() {
 
   const touchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
 
-    let tempTouches = {...touches}
+    let tempTouches : any = {}
+    /* let tempTouches = {...touches}
 
     for (let [, touch] of Object.entries(event.changedTouches)) {
       delete tempTouches[touch.identifier]
     }
+ */
+    for (let [, touch] of Object.entries(event.touches)) {
+      let newTouch : touchPosition = {
+        color: `${COLORS[touch.identifier]}`,
+        identifier: touch.identifier,
+        positionX: touch.clientX,
+        positionY: touch.clientY,
+      }
+
+      tempTouches[touch.identifier] = newTouch
+    }
 
     setTouches(tempTouches);
 
-    clearCountDown();
+    if (event.touches.length <= 1) {
+
+      resetCountDown();
+    } else if (event.touches.length > 1) {
+      resetCountDown();
+      startCountDown(tempTouches);
+    }
+
   }
 
-  const clearCountDown = () => {
+  const onCountDownFinish = (participantTouches: any) => {
+    const randomNumberTotalTouches = Math.floor(Math.random() * Object.keys(participantTouches).length)
+    const indexOfSelected = Object.keys(participantTouches)[randomNumberTotalTouches]
+    setWhoIsSelected(participantTouches[indexOfSelected])
+  }
 
-    clearInterval(timerWinner.current)
-    setWinner(undefined)
-    timerWinner.current=undefined
-    setCountToRandom(0)
-    countToRandomRef.current = 0
+  const onCountDownCycle = (participantTouches: any) => {
+    if (countToSelectWhoRef.current === 3) {
+      onCountDownFinish(participantTouches);
+      resetCountDown();
+      return
+    } 
 
+    setCountToSelectWho(prevCount => prevCount + 1)
+  }
+  
+  const startCountDown = (participantTouches: any) => {
+    oneSecondIntervalTimer.current = setInterval(()=>{
+      onCountDownCycle(participantTouches);
+    }, 1000);
+  }
+
+  const resetCountDown = () => {
+    clearInterval(oneSecondIntervalTimer.current)
+    oneSecondIntervalTimer.current=undefined
+    setCountToSelectWho(0)
   }
 
   return (
     <Container 
       className="App"
-      colorWinner={winner?.color}
+      colorWinner={whoIsSelected?.color}
       onTouchStart={e => touchStart(e)}
       onTouchMove={e => touchMove(e)}
       onTouchEnd={e => touchEnd(e)}
       onTouchCancel={e => touchEnd(e)}
     >
-      {(!winner && timerWinner.current) && <TimerMessage>{countToRandom}</TimerMessage>}
-      {Object.keys(touches).length !== 0 && Object.entries(touches).map(([index, element]:Array<any>)=>(
+      {(!whoIsSelected && !oneSecondIntervalTimer.current) && <StartMessage>Place 2 or more fingers to select between them</StartMessage>}
+      {(!whoIsSelected && oneSecondIntervalTimer.current) && <TimerMessage>{countToSelectWho}</TimerMessage>}
+
+      {(!whoIsSelected && Object.keys(touches).length !== 0) && Object.entries(touches).map(([index, element]:Array<any>)=>(
               
         <div  
           style={{
@@ -158,9 +204,9 @@ function App() {
             top: `${parseInt(element.positionY)-60}px`, 
             left: `${parseInt(element.positionX)-60}px`,
             borderTop: "12px solid black",
-            borderRight: `12px solid ${winner ? "black" : "#d1d1d1"}`,
+            borderRight: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
             borderBottom: "12px solid black",
-            borderLeft: `12px solid ${winner ? "black" : "#d1d1d1"}`,
+            borderLeft: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
             background: `${element.color}`,
             width: "120px",
             height: "120px",
@@ -169,6 +215,25 @@ function App() {
           key={index}
         />
       ))}
+
+      {whoIsSelected && 
+              
+        <div  
+          style={{
+            position: "absolute", 
+            top: `${parseInt(whoIsSelected.positionY)-60}px`, 
+            left: `${parseInt(whoIsSelected.positionX)-60}px`,
+            borderTop: "12px solid black",
+            borderRight: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
+            borderBottom: "12px solid black",
+            borderLeft: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
+            background: `${whoIsSelected.color}`,
+            width: "120px",
+            height: "120px",
+            borderRadius: "60%",
+          }} 
+        />
+      }
     
     </Container>
   );
