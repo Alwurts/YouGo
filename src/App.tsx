@@ -1,13 +1,11 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { start } from 'repl';
+import React, { useRef, useState } from 'react';
 import styled from "styled-components";
-import './App.css';
-
-interface ContainerProps {
+import TouchCircle from './components/TouchCircle';
+interface TouchPadProps {
   colorWinner: String | undefined,
 }
 
-const Container = styled.div<ContainerProps>`
+const TouchPad = styled.div<TouchPadProps>`
   position: static;
   height: 100vh;
   width: 100vw;
@@ -28,6 +26,7 @@ const TimerMessage = styled.p`
 const StartMessage = styled.p`
 
   color: gray;
+  text-align: center;
   font-size: 40px;
   padding: 0 16px;
 `;
@@ -49,8 +48,10 @@ function App() {
   const [countToSelectWho, setCountToSelectWho] = useState<number>(0)
   const countToSelectWhoRef = useRef(countToSelectWho)
   countToSelectWhoRef.current = countToSelectWho;
-  
-  const COLORS : any = {
+
+  const SELECT_HOW_MANY = 1;
+  const SECONDS_TO_SELECT = 4;
+  const TOUCH_COLORS : any = {
     0:"hsl(359, 100%, 50%)",
     1:"hsl(96, 100%, 50%)",
     2:"hsl(208, 100%, 50%)",
@@ -76,16 +77,11 @@ function App() {
   
   const touchStart = (event: React.TouchEvent<HTMLDivElement>) => {
 
-    if (whoIsSelected && event.touches.length === 1) {
-      resetCountDown();
-      setWhoIsSelected(null);
-    }
-
     let tempTouches = {...touches}
 
     for (let [, touch] of Object.entries(event.changedTouches)) {
       let newTouch : touchPosition = {
-        color: `${COLORS[touch.identifier]}`,
+        color: `${TOUCH_COLORS[touch.identifier]}`,
         identifier: touch.identifier,
         positionX: touch.clientX,
         positionY: touch.clientY,
@@ -96,10 +92,12 @@ function App() {
 
     setTouches(tempTouches)
 
-    if (event.touches.length === 2) {
-      startCountDown(tempTouches);
-    } else if (event.touches.length > 2) {
+    if (whoIsSelected && event.touches.length === 1) {
       resetCountDown();
+      setWhoIsSelected(null);
+    }
+
+    if (event.touches.length >= SELECT_HOW_MANY + 1) {
       startCountDown(tempTouches);
     }
     
@@ -127,15 +125,10 @@ function App() {
   const touchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
 
     let tempTouches : any = {}
-    /* let tempTouches = {...touches}
 
-    for (let [, touch] of Object.entries(event.changedTouches)) {
-      delete tempTouches[touch.identifier]
-    }
- */
     for (let [, touch] of Object.entries(event.touches)) {
       let newTouch : touchPosition = {
-        color: `${COLORS[touch.identifier]}`,
+        color: `${TOUCH_COLORS[touch.identifier]}`,
         identifier: touch.identifier,
         positionX: touch.clientX,
         positionY: touch.clientY,
@@ -147,10 +140,10 @@ function App() {
     setTouches(tempTouches);
 
     if (event.touches.length <= 1) {
-
       resetCountDown();
-    } else if (event.touches.length > 1) {
-      resetCountDown();
+    } 
+    
+    if (event.touches.length > 1 && !whoIsSelected) {
       startCountDown(tempTouches);
     }
 
@@ -163,7 +156,7 @@ function App() {
   }
 
   const onCountDownCycle = (participantTouches: any) => {
-    if (countToSelectWhoRef.current === 3) {
+    if (countToSelectWhoRef.current === SECONDS_TO_SELECT - 1) {
       onCountDownFinish(participantTouches);
       resetCountDown();
       return
@@ -173,6 +166,7 @@ function App() {
   }
   
   const startCountDown = (participantTouches: any) => {
+    resetCountDown();
     oneSecondIntervalTimer.current = setInterval(()=>{
       onCountDownCycle(participantTouches);
     }, 1000);
@@ -185,7 +179,7 @@ function App() {
   }
 
   return (
-    <Container 
+    <TouchPad 
       className="App"
       colorWinner={whoIsSelected?.color}
       onTouchStart={e => touchStart(e)}
@@ -193,49 +187,38 @@ function App() {
       onTouchEnd={e => touchEnd(e)}
       onTouchCancel={e => touchEnd(e)}
     >
-      {(!whoIsSelected && !oneSecondIntervalTimer.current) && <StartMessage>Place 2 or more fingers to select between them</StartMessage>}
+      {
+        (!whoIsSelected && !oneSecondIntervalTimer.current) && 
+        <StartMessage>Place 2 or more fingers to select between them</StartMessage>
+      }
+
       {(!whoIsSelected && oneSecondIntervalTimer.current) && <TimerMessage>{countToSelectWho}</TimerMessage>}
 
-      {(!whoIsSelected && Object.keys(touches).length !== 0) && Object.entries(touches).map(([index, element]:Array<any>)=>(
-              
-        <div  
-          style={{
-            position: "absolute", 
-            top: `${parseInt(element.positionY)-60}px`, 
-            left: `${parseInt(element.positionX)-60}px`,
-            borderTop: "12px solid black",
-            borderRight: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
-            borderBottom: "12px solid black",
-            borderLeft: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
-            background: `${element.color}`,
-            width: "120px",
-            height: "120px",
-            borderRadius: "60%",
-          }} 
-          key={index}
-        />
-      ))}
+      {
+        (!whoIsSelected && Object.keys(touches).length !== 0) && 
+        Object.entries(touches).map(([, element]:Array<any>)=>(
+          <TouchCircle
+            color={element.color} 
+            allBlack={whoIsSelected}
+            positionX={element.positionX}
+            positionY={element.positionY}
+            key={element.identifier}
+          />
+          
+        ))
+      }
 
-      {whoIsSelected && 
-              
-        <div  
-          style={{
-            position: "absolute", 
-            top: `${parseInt(whoIsSelected.positionY)-60}px`, 
-            left: `${parseInt(whoIsSelected.positionX)-60}px`,
-            borderTop: "12px solid black",
-            borderRight: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
-            borderBottom: "12px solid black",
-            borderLeft: `12px solid ${whoIsSelected ? "black" : "#d1d1d1"}`,
-            background: `${whoIsSelected.color}`,
-            width: "120px",
-            height: "120px",
-            borderRadius: "60%",
-          }} 
-        />
+      {
+        (whoIsSelected && touches[whoIsSelected.identifier]) && 
+        <TouchCircle
+          color={touches[whoIsSelected.identifier].color} 
+          allBlack={true}
+          positionX={touches[whoIsSelected.identifier].positionX}
+          positionY={touches[whoIsSelected.identifier].positionY}
+        />     
       }
     
-    </Container>
+    </TouchPad>
   );
 }
 
